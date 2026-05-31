@@ -1,9 +1,18 @@
 import os
 import requests
-import msal
-from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    import msal
+except ImportError:
+    msal = None
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
+if load_dotenv:
+    load_dotenv()
 
 CLIENT_ID = os.getenv("CLIENT_ID")
 AUTHORITY = "https://login.microsoftonline.com/common"
@@ -12,6 +21,11 @@ SCOPES = ["User.Read", "Mail.ReadWrite"]
 
 
 def get_access_token(outlook_account=None):
+    if msal is None:
+        raise ValueError(
+            "The msal package is not installed. Add msal to requirements.txt "
+            "and redeploy the app."
+        )
     if not CLIENT_ID:
         raise ValueError("CLIENT_ID is missing. Add it to your .env file.")
 
