@@ -66,17 +66,30 @@ def main():
     if not any(db_results.values()):
         st.info("No new leads were added.")
 
+    microsoft_account = st.text_input(
+        "Microsoft account to create drafts from:",
+        placeholder="you@example.com",
+        help="Drafts are created in the mailbox for the Microsoft account you sign into.",
+    )
+    subject = st.text_input("Email subject:", value="Quick question")
     message = st.text_area(
         "Enter your email template (use {Name}, {Company Name}, {Title} as placeholders):"
     )
     if st.button("Generate Messages"):
+        if not microsoft_account.strip():
+            st.error("Enter the Microsoft account you want to create drafts from.")
+            return
+
         try:
             email_messages = generate_email(unique_data, message)
+            device_flow = start_device_login(microsoft_account.strip())
         except ValueError as error:
             st.error(str(error))
             return
 
         st.session_state["email_messages"] = email_messages
+        st.session_state["device_flow"] = device_flow
+        st.session_state["microsoft_account"] = microsoft_account.strip()
 
         st.success(f"Generated {len(email_messages)} email message(s).")
         st.toast("Email messages generated.")
@@ -84,38 +97,24 @@ def main():
     if "email_messages" in st.session_state:
         st.subheader("Generated Email Messages:")
 
-        subject = st.text_input("Email subject:", value="Quick question")
-        microsoft_account = st.text_input(
-            "Microsoft account to sign in with:",
-            placeholder="you@example.com",
-            help="Drafts are created in the mailbox for the Microsoft account you sign into.",
-        )
-
         for index, email in enumerate(st.session_state["email_messages"]):
             st.write(f"To: {email['Email']}")
             st.write(f"Message: {email['Message']}")
             st.write("---")
 
-        if st.button("Start Microsoft Sign In"):
-            try:
-                st.session_state["device_flow"] = start_device_login()
-            except ValueError as error:
-                st.error(str(error))
-                return
-
         if "device_flow" in st.session_state:
             st.info(
-                "Sign in with the Microsoft account above. "
+                "Microsoft sign-in started from the Generate Messages button. "
                 "After signing in, come back here and create the drafts."
             )
             st.code(st.session_state["device_flow"].get("message", ""))
-            if microsoft_account:
+            if st.session_state.get("microsoft_account"):
                 st.caption(
-                    f"Make sure you sign in as {microsoft_account}. "
+                    f"Make sure you sign in as {st.session_state['microsoft_account']}. "
                     "The drafts will be created in that signed-in mailbox."
                 )
 
-        if st.button("Create Drafts for All Emails"):
+        if st.button("I've Signed In - Create Drafts for All Emails"):
             try:
                 access_token = get_access_token_from_device_login(
                     st.session_state.get("device_flow")

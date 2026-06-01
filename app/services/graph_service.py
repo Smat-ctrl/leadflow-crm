@@ -35,9 +35,18 @@ def get_public_client_app():
     )
 
 
-def start_device_login():
+def start_device_login(microsoft_account=None):
     app = get_public_client_app()
-    flow = app.initiate_device_flow(scopes=SCOPES)
+    if microsoft_account:
+        try:
+            flow = app.initiate_device_flow(
+                scopes=SCOPES,
+                login_hint=microsoft_account,
+            )
+        except TypeError:
+            flow = app.initiate_device_flow(scopes=SCOPES)
+    else:
+        flow = app.initiate_device_flow(scopes=SCOPES)
 
     if "user_code" not in flow:
         raise ValueError(f"Could not start Microsoft sign-in: {flow}")
