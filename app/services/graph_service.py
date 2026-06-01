@@ -20,7 +20,7 @@ AUTHORITY = "https://login.microsoftonline.com/common"
 SCOPES = ["User.Read", "Mail.ReadWrite"]
 
 
-def get_access_token(outlook_account=None):
+def get_public_client_app():
     if msal is None:
         raise ValueError(
             "The msal package is not installed. Add msal to requirements.txt "
@@ -29,19 +29,32 @@ def get_access_token(outlook_account=None):
     if not CLIENT_ID:
         raise ValueError("CLIENT_ID is missing. Add it to your .env file.")
 
-    app = msal.PublicClientApplication(
+    return msal.PublicClientApplication(
         CLIENT_ID,
         authority=AUTHORITY
     )
 
-    token_options = {"scopes": SCOPES}
-    if outlook_account:
-        token_options["login_hint"] = outlook_account
 
-    result = app.acquire_token_interactive(**token_options)
+def start_device_login():
+    app = get_public_client_app()
+    flow = app.initiate_device_flow(scopes=SCOPES)
+
+    if "user_code" not in flow:
+        raise ValueError(f"Could not start Microsoft sign-in: {flow}")
+
+    return flow
+
+
+def get_access_token_from_device_login(device_flow):
+    if not device_flow:
+        raise ValueError("Start Microsoft sign-in before creating drafts.")
+
+    app = get_public_client_app()
+    result = app.acquire_token_by_device_flow(device_flow)
 
     if "access_token" not in result:
-        raise ValueError(f"Could not get Microsoft access token: {result}")
+        error = result.get("error_description") or result
+        raise ValueError(f"Could not get Microsoft access token: {error}")
 
     return result["access_token"]
 
@@ -77,13 +90,14 @@ def create_email_draft(to_email, subject, body, access_token):
     return response.json()
 
 
-def create_email_drafts(email_messages, subject, outlook_account=None):
+def create_email_drafts(email_messages, subject, access_token):
     if not email_messages:
         raise ValueError("Generate email messages before creating drafts.")
     if not subject.strip():
         raise ValueError("Enter a subject before creating drafts.")
+    if not access_token:
+        raise ValueError("Sign in with Microsoft before creating drafts.")
 
-    access_token = get_access_token(outlook_account=outlook_account)
     drafts = []
     failures = []
 

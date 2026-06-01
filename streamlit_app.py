@@ -4,7 +4,11 @@ from app.db.database import check_db
 from app.db.schema import create_tables
 from app.db.database import delete_db
 from app.services.email_generator import generate_email
-from app.services.graph_service import create_email_drafts
+from app.services.graph_service import (
+    create_email_drafts,
+    get_access_token_from_device_login,
+    start_device_login,
+)
 from app.services.lead_cleaner import sheet_cleaner
 
 
@@ -81,10 +85,10 @@ def main():
         st.subheader("Generated Email Messages:")
 
         subject = st.text_input("Email subject:", value="Quick question")
-        outlook_account = st.text_input(
-            "Outlook account to create drafts from:",
+        microsoft_account = st.text_input(
+            "Microsoft account to sign in with:",
             placeholder="you@example.com",
-            help="This is the Microsoft account you will sign into. Drafts are created in that mailbox.",
+            help="Drafts are created in the mailbox for the Microsoft account you sign into.",
         )
 
         for index, email in enumerate(st.session_state["email_messages"]):
@@ -92,12 +96,34 @@ def main():
             st.write(f"Message: {email['Message']}")
             st.write("---")
 
+        if st.button("Start Microsoft Sign In"):
+            try:
+                st.session_state["device_flow"] = start_device_login()
+            except ValueError as error:
+                st.error(str(error))
+                return
+
+        if "device_flow" in st.session_state:
+            st.info(
+                "Sign in with the Microsoft account above. "
+                "After signing in, come back here and create the drafts."
+            )
+            st.code(st.session_state["device_flow"].get("message", ""))
+            if microsoft_account:
+                st.caption(
+                    f"Make sure you sign in as {microsoft_account}. "
+                    "The drafts will be created in that signed-in mailbox."
+                )
+
         if st.button("Create Drafts for All Emails"):
             try:
+                access_token = get_access_token_from_device_login(
+                    st.session_state.get("device_flow")
+                )
                 result = create_email_drafts(
                     email_messages=st.session_state["email_messages"],
                     subject=subject,
-                    outlook_account=outlook_account.strip() or None,
+                    access_token=access_token,
                 )
             except ValueError as error:
                 st.error(str(error))
