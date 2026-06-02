@@ -1,5 +1,5 @@
 ﻿streamlit
 pandas
-requests
 msal
+requests
 python-dotenv
